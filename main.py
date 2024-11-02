@@ -94,17 +94,48 @@ class Player:
         glPushMatrix()
         glTranslatef(*self.position)
         glRotatef(self.angle, 0, 1, 0)
-        glColor3f(0.275, 0.510, 0.706)  # Red for the main body
+        glColor3f(0.439, 0.502, 0.565)  # Cor principal do corpo
+        glutSolidCylinder(0.5, 2, 20, 20)  # Cilindro que compõe o corpo
 
-        # Rocket body (cylinder)
-        glutSolidCylinder(0.5, 2, 20, 20)  # Adjust radius and height
-
-        # Rocket nose (cone)
+        # Chápeu do foguete (cone)
         glPushMatrix()
-        glTranslatef(0, 0, -0.001)  # Move to top of the cylinder
-        glRotatef(180, 1, 0, 0)
+        glTranslatef(0, 0, -0.001)  # Ajustando o cone
+        glRotatef(180, 1, 0, 0) # Ajustando orientação
         glColor3f(0.698, 0.133, 0.133)
         glutSolidCone(0.5, 1, 20, 20)
+        glPopMatrix()
+
+        #Rocket bottom
+        glPushMatrix()                
+        glTranslate( 0, 0, 2.1)  
+        glRotatef(-180, 1.0, 0.0, 0.0) 
+        glRotatef(-45, 0.0, 0.0, 1.0)
+        glColor3f(0.098, 0.098, 0.439)
+        glutSolidCone(0.6, 0.75, 32, 32)
+        glPopMatrix()
+
+        # Asa direita
+        glPushMatrix()
+        glTranslatef(.4, 0, 1.7) # Posição
+        glRotatef(180, 1, 0, 0) # Ajustando orientação
+        glColor3f(0.698, 0.133, 0.133)
+        glutSolidCone(0.4, 1.0, 4, 4)
+        glPopMatrix()
+
+        # Asa esquerda
+        glPushMatrix()
+        glTranslatef(-.4, 0, 1.7) # Posição
+        glRotatef(180, 1, 0, 0) # Ajustando orientação
+        glColor3f(0.698, 0.133, 0.133)
+        glutSolidCone(0.4, 1.0, 4, 4)
+        glPopMatrix()
+
+        # Janela
+        glPushMatrix()
+        glTranslate(0, .5, .5)
+        glRotatef(90, 1.0, 0.0, 0.0)
+        glColor3f(0.098, 0.098, 0.439)
+        glutSolidCone(.3, .1, 32, 32)
         glPopMatrix()
 
         glPopMatrix()   
@@ -139,7 +170,7 @@ class Player:
             distance = np.linalg.norm(self.position - planet_pos)
             if distance < self.size + planet.size:
                 print(f"Collision detected with {planet.name}")
-                # Handle collision (e.g., stop movement, reduce health)
+                # Provavelmente colocar a tela de exibição dos detalhes do planeta
 
 # Instância do jogador
 player = Player([0, 2, 50])  # Posição inicial ajustada para uma visualização melhor
@@ -152,9 +183,15 @@ def init_scene():
     glEnable(GL_LIGHT0)  # Luz do Sol
     glEnable(GL_LIGHT1)  # Luz adicional
     glLightfv(GL_LIGHT0, GL_POSITION, [0, 0, 0, 1])  # Luz fixa no Sol
-    glLightfv(GL_LIGHT0, GL_DIFFUSE, [1, 1, 1, 1])
-    glLightfv(GL_LIGHT1, GL_POSITION, [100, 100, 100, 1])  # Luz adicional
-    glLightfv(GL_LIGHT1, GL_DIFFUSE, [1, 1, 1, 1])
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, [1.5, 1.5, 1.5, 1])
+    glLightfv(GL_LIGHT0, GL_AMBIENT, [0.5, 0.5, 0.5, 1])   # Luz ambiente
+    glLightfv(GL_LIGHT0, GL_SPECULAR, [1.0, 1.0, 1.0, 1])  # Luz especular
+
+    # Luz da camera 1st person
+    glEnable(GL_LIGHT1)
+    glLightfv(GL_LIGHT1, GL_DIFFUSE, [1.0, 0.2, 0.2, 1]) # Luz do foguete
+    glLightfv(GL_LIGHT1, GL_AMBIENT, [0.4, 0.1, 0.1, 1]) # Luz ambiente
+    glLightfv(GL_LIGHT1, GL_SPECULAR, [0.5, 0.1, 0.1, 1]) # Luz especular
 
     # Habilitar cor material
     glEnable(GL_COLOR_MATERIAL)
@@ -181,12 +218,13 @@ def display():
 
     # Configurar iluminação
     if light_enabled:
-        glEnable(GL_LIGHT1)
+        glEnable(GL_LIGHT0)
     else:
-        glDisable(GL_LIGHT1)
+        glDisable(GL_LIGHT0)
 
     #Desenhar Player
-    player.draw_rocket()
+    if current_camera != CAMERA_FIRST_PERSON:
+        player.draw_rocket()
 
     # Desenhar o Sol
     glPushMatrix()
@@ -211,22 +249,24 @@ def display():
 def set_camera():
     global player
     if current_camera == CAMERA_FIRST_PERSON:
-        eye = player.position
-        center = player.position + np.array([math.sin(math.radians(player.angle)),
-                                            0,
-                                            -math.cos(math.radians(player.angle))])
+        # Camera posicionada um pouco em frente ao cone
+        offset_distance = 0.8
+        rad = math.radians(player.angle)
+        
+        eye = player.position + np.array([offset_distance * math.sin(rad),
+                                          0.5,
+                                          -offset_distance * math.cos(rad)])
+        center = player.position + np.array([2 * math.sin(rad), 0.5, -2 * math.cos(rad)])
         up = [0, 1, 0]
         gluLookAt(eye[0], eye[1], eye[2],
                   center[0], center[1], center[2],
                   up[0], up[1], up[2])
         
     elif current_camera == CAMERA_FIXED_1:
-        # Corrected Third-Person Camera (capturing the back of the rocket)
-        distance_behind = 30.0  # Distance behind the player
-        height_above = 5.0      # Slight height above the player
+        distance_behind = 20.0  # Distancia do player
+        height_above = 5.0      # Direção da visão sobre o player
         rad = math.radians(player.angle)
         
-        # Position camera behind the player, aligned with player's orientation
         eye = player.position + np.array([-distance_behind * math.sin(rad),
                                           height_above,
                                           distance_behind * math.cos(rad)])
@@ -237,20 +277,15 @@ def set_camera():
                   up[0], up[1], up[2])
 
     elif current_camera == CAMERA_FIXED_2:
-        # Top-Down Camera (above the player)
-        height_above = 60.0  # Adjust for desired altitude
+        height_above = 40.0  # Distancia da altura
         eye = player.position + np.array([0, height_above, 0])
         center = player.position
-        up = [0, 0, -1]  # Inverted Z-axis for top-down view
+        up = [0, 0, -1]  # Inversão do eixo Z
         gluLookAt(eye[0], eye[1], eye[2],
                   center[0], center[1], center[2],
                   up[0], up[1], up[2])
 
-    else:
-        cam = cameras[current_camera]
-        gluLookAt(cam['eye'][0], cam['eye'][1], cam['eye'][2],
-                  cam['center'][0], cam['center'][1], cam['center'][2],
-                  cam['up'][0], cam['up'][1], cam['up'][2])
+    glLightfv(GL_LIGHT1, GL_POSITION, [player.position[0], player.position[1], player.position[2], 1])
 
 # Função para desenhar texto na tela
 def draw_text(x, y, text, color):
