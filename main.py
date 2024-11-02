@@ -2,6 +2,7 @@ import sys
 import math
 import random
 import numpy as np
+import time
 from PIL import Image
 from OpenGL.GL import *
 from OpenGL.GLU import *
@@ -17,6 +18,9 @@ CAMERA_FIXED_2 = 2
 # Variáveis globais
 window_width = 800
 window_height = 600
+start_time = time.time()
+game_over = False
+final_time = 0
 
 # Câmeras
 current_camera = CAMERA_FIXED_1  # Inicializar com uma câmera fixa para facilitar testes
@@ -220,6 +224,7 @@ class Player:
         self.position = np.array(position, dtype='float64')  # [x, y, z]
         self.yaw = 0    # Rotação em torno do eixo Y (em graus)
         self.size = 1.5
+        self.planetas_coletados = []
 
     def draw_rocket(self):
         glPushMatrix()
@@ -297,14 +302,30 @@ class Player:
         print(f"Rotacionando para a esquerda: yaw = {self.yaw} graus")
 
     def check_collision(self, planets):
-        global collision_detected, collided_planet
+        global collision_detected, collided_planet, game_over
+
+        # Check for collision with the Sun
+        sun_position = np.array([0, 0, 0])  # Assuming Sun is at origin
+        distance_to_sun = np.linalg.norm(self.position - sun_position)
+        
+        if distance_to_sun < self.size + 2:  # Assuming Sun's size radius is 2
+            game_over = True
+            end_game()  # End the game instantly
+            return  # Exit the function to avoid further checks
+
         for planet in planets:
+            if planet.name in self.planetas_coletados:
+                continue
+
             planet_pos = np.array(planet.get_position())
             distance = np.linalg.norm(self.position - planet_pos)
+
             if distance < self.size + planet.size:
-                print(f"Collision detected with {planet.name}")
                 collision_detected = True
                 collided_planet = planet
+                self.planetas_coletados.append(planet.name)
+                if len(self.planetas_coletados) == len(planets):
+                    end_game()
                 break
 
 # Instância do jogador
@@ -697,46 +718,67 @@ def draw_sun():
 
 # Função de desenho da cena
 def display():
+    global start_time
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+
+    if game_over:
+        draw_end_game_screen()
     
-    # Desenhar Background
-    draw_background()
-    
-    glLoadIdentity()
-
-    if not collision_detected:
-        # Definir a câmera
-        set_camera()
-
-        # Configurar iluminação
-        if light_enabled:
-            glEnable(GL_LIGHT0)
-        else:
-            glDisable(GL_LIGHT0)
-
-        # Desenhar Player (Foguete)
-        player.draw_rocket()
-
-        # Desenhar o Sol com textura e emissão
-        draw_sun()
-
-        # Desenhar planetas
-        for planet in planets:
-            planet.draw()
-
-        # Desenhar anéis (especificamente para Saturno)
-        for ring in rings:
-            ring.draw()
-
-        # Verificar proximidade e exibir nomes
-        for planet in planets:
-            pos = planet.get_position()
-            distance = np.linalg.norm(player.position - np.array(pos))
-            if distance < planet.size + 5:  # Ajustar limiar de proximidade
-                draw_text(10, window_height - 30, f"Você está próximo de {planet.name}", [1.0, 1.0, 1.0])
     else:
-        # Exibir tela de informações do planeta
-        draw_info_screen(collided_planet)
+        # Desenhar Background
+        draw_background()
+    
+        glLoadIdentity()
+
+        if not collision_detected:
+            # Definir a câmera
+            set_camera()
+
+            # Configurar iluminação
+            if light_enabled:
+                glEnable(GL_LIGHT0)
+            else:
+                glDisable(GL_LIGHT0)
+
+            # Desenhar Player (Foguete)
+            if current_camera != CAMERA_FIRST_PERSON:
+                player.draw_rocket()
+
+            # Desenhar o Sol com textura e emissão
+            draw_sun()
+
+            # Desenhar planetas
+            for planet in planets:
+                planet.draw()
+
+            # Desenhar anéis (especificamente para Saturno)
+            for ring in rings:
+                ring.draw()
+
+            # Verificar proximidade e exibir nomes
+            for planet in planets:
+                pos = planet.get_position()
+                distance = np.linalg.norm(player.position - np.array(pos))
+                if distance < planet.size + 5:  # Ajustar limiar de proximidade
+                    draw_text(10, window_height - 30, f"Você está próximo de {planet.name}", [1.0, 1.0, 1.0])
+        else:
+            # Exibir tela de informações do planeta
+            draw_info_screen(collided_planet)
+
+        # Display timer and collected planets count
+        if game_over:
+            # Show final time if the game is over
+            timer_text = f"Final Time: {int(final_time)}s"
+        else:
+            # Live timer during gameplay
+            elapsed_time = time.time() - start_time
+            timer_text = f"Time: {int(elapsed_time)}s"
+
+        draw_text(10, window_height - 50, timer_text, [1.0, 1.0, 1.0])
+
+        # Display collected count
+        collected_text = f"Planets Collected: {len(player.planetas_coletados)} / {len(planets)}"
+        draw_text(10, window_height - 80, collected_text, [1.0, 1.0, 1.0])
 
     glutSwapBuffers()
 
@@ -803,32 +845,34 @@ def update(value):
 
 # Função para gerenciar entrada do teclado
 def keyboard(key, x, y):
-    global current_camera, light_enabled, collision_detected, collided_planet
+    global current_camera, light_enabled, collision_detected, collided_planet, game_over
     key = key.decode('utf-8').lower()
-    if not collision_detected:
-        if key == 'w':
-            player.move_forward(1.0)  # Mover para frente
-        elif key == 'q':
-            player.rotate_right(5)    # Rotacionar para a direita
-        elif key == 'e':
-            player.rotate_left(5)     # Rotacionar para a esquerda
-        elif key == '1':
-            current_camera = CAMERA_FIRST_PERSON
-            print("Câmera mudada para Primeira Pessoa")
-        elif key == '2':
-            current_camera = CAMERA_FIXED_1
-            print("Câmera mudada para Fixa 1")
-        elif key == '3':
-            current_camera = CAMERA_FIXED_2
-            print("Câmera mudada para Fixa 2")
-        elif key == 'l':
-            light_enabled = not light_enabled
-            print(f"Iluminação {'ligada' if light_enabled else 'desligada'}")
+
+    if game_over:
+        if key == '\x1b':  # ESC to close the game
+            glutLeaveMainLoop()
+        elif key == '\r':  # ENTER to restart the game
+            restart_game()
     else:
-        if key == '\x1b':  # ESC para fechar a tela de informações
-            collision_detected = False
-            collided_planet = None
-            print("Tela de informações fechada")
+        if not collision_detected:
+            if key == 'w':
+                player.move_forward(1.0)  # Mover para frente
+            elif key == 'q':
+                player.rotate_right(5)    # Rotacionar para a direita
+            elif key == 'e':
+                player.rotate_left(5)     # Rotacionar para a esquerda
+            elif key == '1':
+                current_camera = CAMERA_FIRST_PERSON
+            elif key == '2':
+                current_camera = CAMERA_FIXED_1
+            elif key == '3':
+                current_camera = CAMERA_FIXED_2
+            elif key == 'l':
+                light_enabled = not light_enabled
+        else:
+            if key == '\x1b':  # ESC para fechar a tela de informações
+                collision_detected = False
+                collided_planet = None
 
     glutPostRedisplay()
 
@@ -891,17 +935,14 @@ def create_menus():
 def menu_cameras_func(option):
     global current_camera
     current_camera = option
-    print(f"Câmera selecionada: {current_camera}")
     glutPostRedisplay()
 
 def menu_lighting_func(option):
     global light_enabled
     if option == LIGHT_ON:
         light_enabled = True
-        print("Iluminação ligada via menu")
     elif option == LIGHT_OFF:
         light_enabled = False
-        print("Iluminação desligada via menu")
     glutPostRedisplay()
 
 def menu_planets_func(option):
@@ -909,7 +950,6 @@ def menu_planets_func(option):
     if 0 <= option < len(planets):
         collided_planet = planets[option]
         collision_detected = True
-        print(f"Informações exibidas para o planeta: {collided_planet.name}")
         glutPostRedisplay()
 
 def menu_curiosities_func(option):
@@ -934,7 +974,6 @@ def menu_curiosities_func(option):
     if 0 <= option < len(curiosities):
         collided_planet = CuriosityPlanet(curiosities[option])
         collision_detected = True
-        print("Curiosidade exibida.")
         glutPostRedisplay()
 
 def menu_controls_func(option):
@@ -956,7 +995,6 @@ def menu_controls_func(option):
     controls_info = "\n".join(controls)
     collided_planet = ControlsInfo(controls_info)
     collision_detected = True
-    print("Controles exibidos.")
     glutPostRedisplay()
 
 # Função de redimensionamento da janela
@@ -987,6 +1025,52 @@ def init():
     init_scene()
     create_menus()
     glutTimerFunc(16, update, 0)  # Iniciar loop de atualização
+
+# Função de fim de jogo
+def end_game():
+    global game_over, final_time
+    game_over = True
+    if final_time == 0:
+        final_time = time.time() - start_time  # Record final elapsed time
+
+def draw_end_game_screen():
+    global final_time
+    glDisable(GL_LIGHTING)
+    glDisable(GL_DEPTH_TEST)
+    
+    # Semi-transparent background
+    glColor4f(0, 0, 0, 0.8)
+    glBegin(GL_QUADS)
+    glVertex2f(0, 0)
+    glVertex2f(window_width, 0)
+    glVertex2f(window_width, window_height)
+    glVertex2f(0, window_height)
+    glEnd()
+
+    # Display final time and collected planets
+    glColor3f(1.0, 1.0, 1.0)
+    draw_text(window_width // 2 - 60, window_height // 2 + 100, f"Game Over!", [1.0, 1.0, 1.0])
+    draw_text(window_width // 2 - 80, window_height // 2 + 60, f"Final Time: {int(final_time)}s", [1.0, 1.0, 1.0])
+    collected_text = "Planetas Coletados: " + ", ".join(player.planetas_coletados)
+    draw_text(window_width // 2 - 100, window_height // 2 + 30, collected_text, [1.0, 1.0, 1.0])
+
+    # Display instructions to restart or exit
+    draw_text(window_width // 2 - 100, window_height // 2 - 30, "'ENTER' para Recomeçar", [1.0, 1.0, 1.0])
+    draw_text(window_width // 2 - 100, window_height // 2 - 60, "'ESC' para Sair", [1.0, 1.0, 1.0])
+
+    glEnable(GL_DEPTH_TEST)
+    glEnable(GL_LIGHTING)
+
+def restart_game():
+    global start_time, game_over, final_time, collision_detected, collided_planet
+    start_time = time.time()
+    game_over = False
+    final_time = 0
+    collision_detected = False
+    collided_planet = None
+    player.position = np.array([0, 2, 50], dtype='float64')  # Reset player position
+    player.planetas_coletados.clear()       # Clear collected planets
+    player.yaw = 0                          # Reset player rotation if needed
 
 # Função principal
 def main():
