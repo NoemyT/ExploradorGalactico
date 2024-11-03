@@ -336,6 +336,7 @@ class Player:
         glDisable(GL_BLEND)
         glPopMatrix()
 
+    """
     def move_forward(self, distance):
         # Calcula o deslocamento baseado em yaw
         rad_yaw = math.radians(self.yaw)
@@ -348,18 +349,25 @@ class Player:
         self.position += np.array([dx, dy, dz])
         self.is_moving = True  # Ativa o estado de movimento
         print(f"Movendo para frente: posição atual {self.position}")
+    """
+
+    def move_player(self, forward, right):
+        rad = math.radians(player.yaw)
+        move_vector = np.array([right * math.cos(rad) + forward * math.sin(rad),
+                            0,
+                            right * math.sin(rad) - forward * math.cos(rad)])
+        self.position += move_vector * 1.0  # Adjust speed as needed
+        self.is_moving = True
 
     def rotate_right(self, angle):
         self.yaw -= angle
         if self.yaw < 0:
             self.yaw += 360
-        print(f"Rotacionando para a direita: yaw = {self.yaw} graus")
 
     def rotate_left(self, angle):
         self.yaw += angle
         if self.yaw >= 360:
             self.yaw -= 360
-        print(f"Rotacionando para a esquerda: yaw = {self.yaw} graus")
 
     def check_collision(self, celestial_bodies):
         global collision_detected, collided_planet, game_over
@@ -867,11 +875,11 @@ def display():
 # Função para definir a câmera atual
 def set_camera():
     global player
+    rad = math.radians(player.yaw)
+
     if current_camera == CAMERA_FIRST_PERSON:
         # Câmera em primeira pessoa
         offset_distance = 0.8
-        rad = math.radians(player.yaw)
-
         eye = player.position + np.array([offset_distance * math.sin(rad),
                                          0.5,
                                          -offset_distance * math.cos(rad)])
@@ -879,13 +887,12 @@ def set_camera():
         up = [0, 1, 0]
         gluLookAt(eye[0], eye[1], eye[2],
                   center[0], center[1], center[2],
-                  up[0], up[1], up[2])
+                  up[0], up[1], up[0])
 
     elif current_camera == CAMERA_FIXED_1:
         # Câmera fixa 1: posição fixa atrás e acima da nave, seguindo o yaw
         offset_distance_back = 20.0
         offset_height = 10.0
-        rad = math.radians(player.yaw)
 
         eye_x = player.position[0] - offset_distance_back * math.sin(rad)
         eye_z = player.position[2] + offset_distance_back * math.cos(rad)
@@ -900,20 +907,11 @@ def set_camera():
 
     elif current_camera == CAMERA_FIXED_2:
         # Câmera fixa 2: posição fixa de cima, seguindo o yaw
-        offset_distance_back = 20.0
         offset_height = 50.0
-        rad = math.radians(player.yaw)
-
-        eye_x = player.position[0] - offset_distance_back * math.sin(rad)
-        eye_z = player.position[2] + offset_distance_back * math.cos(rad)
-        eye_y = player.position[1] + offset_height
-
-        eye = np.array([eye_x, eye_y, eye_z])
+        eye = player.position + np.array([0, offset_height, 0])
         center = player.position
-        up = [0, 0, -1]  # Ajuste para a orientação desejada
-        gluLookAt(eye[0], eye[1], eye[2],
-                  center[0], center[1], center[2],
-                  up[0], up[1], up[2])
+        up = [0, 0, -1]  # Fixed up vector to avoid flipping
+        gluLookAt(eye[0], eye[1], eye[2], center[0], center[1], center[2], up[0], up[1], up[2])
 
     # Atualizar posição da luz do foguete
     glLightfv(GL_LIGHT1, GL_POSITION, [player.position[0], player.position[1], player.position[2], 1])
@@ -956,7 +954,13 @@ def keyboard(key, x, y):
     else:
         if not collision_detected:
             if key == 'w':
-                player.move_forward(1.0)  # Mover para frente
+                player.move_player(1, 0)  # Mover para frente
+            elif key == 's':
+                player.move_player(-1, 0)
+            elif key == 'a':
+                player.move_player(0, -1)
+            elif key == 'd':
+                player.move_player(0, 1)
             elif key == 'q':
                 player.rotate_right(5)    # Rotacionar para a direita
             elif key == 'e':
