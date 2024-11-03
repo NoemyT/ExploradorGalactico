@@ -21,6 +21,7 @@ window_height = 600
 start_time = time.time()
 game_over = False
 final_time = 0
+tempo_antes_pausa = 0
 
 # Câmeras
 current_camera = CAMERA_FIXED_1  # Inicializar com uma câmera fixa para facilitar testes
@@ -846,18 +847,18 @@ def display():
             # Exibir tela de informações do planeta
             draw_info_screen(collided_planet)
 
-        # Display timer and collected planets count
+        # Tempo passado e planetas coletados
         if game_over:
-            # Show final time if the game is over
             timer_text = f"Final Time: {int(final_time)}s"
+        elif paused:
+            timer_text = f"Time: {int(tempo_antes_pausa)}s"
         else:
-            # Live timer durante o gameplay
+            # Live timer durante a gameplay
             elapsed_time = time.time() - start_time
             timer_text = f"Time: {int(elapsed_time)}s"
 
         draw_text(10, window_height - 50, timer_text, [1.0, 1.0, 1.0])
 
-        # Display collected count
         collected_text = f"Planetas Visitados: {len(player.planetas_coletados)} / {len(planets)}"
         draw_text(10, window_height - 80, collected_text, [1.0, 1.0, 1.0])
 
@@ -944,7 +945,7 @@ def update(value):
 
 # Função para gerenciar entrada do teclado
 def keyboard(key, x, y):
-    global current_camera, light_enabled, collision_detected, collided_planet, game_over, paused
+    global current_camera, light_enabled, collision_detected, collided_planet, game_over, paused, tempo_antes_pausa, start_time
     key = key.decode('utf-8').lower()
 
     if game_over:
@@ -970,7 +971,10 @@ def keyboard(key, x, y):
                 light_enabled = not light_enabled
             elif key == 'p':
                 paused = not paused  # Alternar estado de pausa
-                print(f"Jogo {'pausado' if paused else 'despausado'}.")
+                if paused:
+                    tempo_antes_pausa = time.time() - start_time
+                else:
+                    start_time = time.time() - tempo_antes_pausa
         else:
             if key == '\x1b':  # ESC para fechar a tela de informações
                 collision_detected = False
