@@ -242,12 +242,15 @@ class Player:
         self.yaw = 0    # Rotação em torno do eixo Y (em graus)
         self.size = 1.5
         self.planetas_coletados = []
+        self.flame_animation_time = 0  # Tempo para animação das chamas
+        self.is_moving = False        # Nova variável para controlar se está se movendo
 
     def draw_rocket(self):
         glPushMatrix()
         glTranslatef(*self.position)
         glRotatef(self.yaw, 0, 1, 0)   # Rotação em Y (Yaw)
 
+        # Corpo do foguete
         glColor3f(0.439, 0.502, 0.565)  # Cor principal do corpo
         glutSolidCylinder(0.5, 2, 20, 20)  # Cilindro que compõe o corpo
 
@@ -259,7 +262,7 @@ class Player:
         glutSolidCone(0.5, 1, 20, 20)
         glPopMatrix()
 
-        # Rocket bottom
+        # Parte inferior do foguete
         glPushMatrix()
         glTranslatef(0, 0, 2.1)
         glRotatef(-180, 1.0, 0.0, 0.0)
@@ -292,6 +295,44 @@ class Player:
         glutSolidCone(.3, .1, 32, 32)
         glPopMatrix()
 
+        # Desenhar as chamas somente se estiver se movendo
+        if self.is_moving:
+            self.draw_flames()
+
+        glPopMatrix()
+
+    def draw_flames(self):
+        # Atualizar tempo de animação
+        self.flame_animation_time += 0.05
+        flame_scale = 1.0 + 0.1 * math.sin(self.flame_animation_time)
+        flame_position_offset = 0.2 * math.sin(self.flame_animation_time * 2)
+
+        glPushMatrix()
+        # Posicionar as chamas na base do foguete
+        glTranslatef(0, 0, 2.1 + flame_position_offset)
+        glRotatef(-180, 1.0, 0.0, 0.0)  # Ajustar orientação para apontar para baixo
+
+        # Configurar blending para transparência
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+
+        # Configurar cor das chamas com transparência
+        glColor4f(1.0, 0.5, 0.0, 0.8)  # Laranja com 80% de opacidade
+
+        # Desenhar as chamas como cones
+        glPushMatrix()
+        glScalef(flame_scale, flame_scale, flame_scale)
+        glutSolidCone(0.5, 1.0, 20, 20)
+        glPopMatrix()
+
+        # Opcional: adicionar múltiplas camadas de chamas para maior realismo
+        glPushMatrix()
+        glScalef(flame_scale * 0.8, flame_scale * 0.8, flame_scale * 0.8)
+        glColor4f(1.0, 0.7, 0.0, 0.6)  # Amarelo com 60% de opacidade
+        glutSolidCone(0.4, 1.0, 20, 20)
+        glPopMatrix()
+
+        glDisable(GL_BLEND)
         glPopMatrix()
 
     def move_forward(self, distance):
@@ -304,6 +345,7 @@ class Player:
         dy = 0  # Sem movimentação vertical
 
         self.position += np.array([dx, dy, dz])
+        self.is_moving = True  # Ativa o estado de movimento
         print(f"Movendo para frente: posição atual {self.position}")
 
     def rotate_right(self, angle):
@@ -318,7 +360,7 @@ class Player:
             self.yaw -= 360
         print(f"Rotacionando para a esquerda: yaw = {self.yaw} graus")
 
-    def check_collision(self, planets):
+    def check_collision(self, celestial_bodies):
         global collision_detected, collided_planet, game_over
 
         # Check for collision with the Sun
@@ -330,17 +372,17 @@ class Player:
             end_game()  # End the game instantly
             return  # Exit the function to avoid further checks
 
-        for planet in planets:
-            if planet.name in self.planetas_coletados:
+        for body in celestial_bodies:
+            if body.name in self.planetas_coletados:
                 continue
 
-            planet_pos = np.array(planet.get_position())
-            distance = np.linalg.norm(self.position - planet_pos)
+            body_pos = np.array(body.get_position())
+            distance = np.linalg.norm(self.position - body_pos)
 
-            if distance < self.size + planet.size:
+            if distance < self.size + body.size:
                 collision_detected = True
-                collided_planet = planet
-                self.planetas_coletados.append(planet.name)
+                collided_planet = body
+                self.planetas_coletados.append(body.name)
                 if len(self.planetas_coletados) == len(planets):
                     end_game()
                 break
@@ -586,7 +628,7 @@ def draw_text(x, y, text, color):
     glColor3f(*color)
     glRasterPos2f(x, y)
     for char in text:
-        glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, ord(char))  # Usar fonte menor
+        glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, ord(char))  # Usar fonte maior para melhor legibilidade
     glPopMatrix()
     glMatrixMode(GL_PROJECTION)
     glPopMatrix()
@@ -758,11 +800,11 @@ def display():
 
     if game_over:
         draw_end_game_screen()
-    
+
     else:
         # Desenhar Background
         draw_background()
-    
+
         glLoadIdentity()
 
         if not collision_detected:
@@ -795,11 +837,11 @@ def display():
                 ring.draw()
 
             # Verificar proximidade e exibir nomes
-            for planet in planets + moons:
-                pos = planet.get_position()
+            for body in planets + moons:
+                pos = body.get_position()
                 distance = np.linalg.norm(player.position - np.array(pos))
-                if distance < planet.size + 5:  # Ajustar limiar de proximidade
-                    draw_text(10, window_height - 30, f"Você está próximo de {planet.name}", [1.0, 1.0, 1.0])
+                if distance < body.size + 5:  # Ajustar limiar de proximidade
+                    draw_text(10, window_height - 30, f"Você está próximo de {body.name}", [1.0, 1.0, 1.0])
         else:
             # Exibir tela de informações do planeta
             draw_info_screen(collided_planet)
@@ -816,7 +858,7 @@ def display():
         draw_text(10, window_height - 50, timer_text, [1.0, 1.0, 1.0])
 
         # Display collected count
-        collected_text = f"Planets Collected: {len(player.planetas_coletados)} / {len(planets)}"
+        collected_text = f"Planetas Visitados: {len(player.planetas_coletados)} / {len(planets)}"
         draw_text(10, window_height - 80, collected_text, [1.0, 1.0, 1.0])
 
     glutSwapBuffers()
@@ -893,6 +935,9 @@ def update(value):
 
         # Verificar colisões
         player.check_collision(planets + moons)
+
+        # Resetar movimento
+        player.is_moving = False  # Reseta o estado de movimento após a atualização
 
     glutPostRedisplay()
     glutTimerFunc(16, update, 0)  # Aproximadamente 60 FPS
@@ -1108,14 +1153,14 @@ def draw_end_game_screen():
 
     # Display final time and collected planets
     glColor3f(1.0, 1.0, 1.0)
-    draw_text(window_width // 2 - 60, window_height // 2 + 100, f"Game Over!", [1.0, 1.0, 1.0])
-    draw_text(window_width // 2 - 80, window_height // 2 + 60, f"Final Time: {int(final_time)}s", [1.0, 1.0, 1.0])
+    draw_text(window_width // 2 - 150, window_height // 2 + 100, "Game Over!", [1.0, 1.0, 1.0])
+    draw_text(window_width // 2 - 180, window_height // 2 + 60, f"Final Time: {int(final_time)}s", [1.0, 1.0, 1.0])
     collected_text = "Planetas Coletados: " + ", ".join(player.planetas_coletados)
-    draw_text(window_width // 2 - 100, window_height // 2 + 30, collected_text, [1.0, 1.0, 1.0])
+    draw_text(window_width // 2 - 200, window_height // 2 + 30, collected_text, [1.0, 1.0, 1.0])
 
     # Display instructions to restart or exit
-    draw_text(window_width // 2 - 100, window_height // 2 - 30, "'ENTER' para Recomeçar", [1.0, 1.0, 1.0])
-    draw_text(window_width // 2 - 100, window_height // 2 - 60, "'ESC' para Sair", [1.0, 1.0, 1.0])
+    draw_text(window_width // 2 - 200, window_height // 2 - 30, "'ENTER' para Recomeçar", [1.0, 1.0, 1.0])
+    draw_text(window_width // 2 - 200, window_height // 2 - 60, "'ESC' para Sair", [1.0, 1.0, 1.0])
 
     glEnable(GL_DEPTH_TEST)
     glEnable(GL_LIGHTING)
