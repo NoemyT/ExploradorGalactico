@@ -36,6 +36,9 @@ light_enabled = True
 # Lista de planetas
 planets = []
 
+# Lista de luas
+moons = []  # Nova lista para luas
+
 # Variáveis para colisão
 collision_detected = False
 collided_planet = None
@@ -45,18 +48,22 @@ background_texture_id = None
 sun_texture_id = None
 saturn_ring_texture_id = None
 
+# Variável para pausar o jogo
+paused = False  # Nova variável para controlar pausa
+
 # Classe para representar cada planeta
 class Planet:
-    def __init__(self, name, color, size, distance, orbit_speed, rotation_speed, texture_file, info):
+    def __init__(self, name, color, size, distance, orbit_speed, rotation_speed, texture_file, info, parent=None):
         """
         :param name: Nome do planeta
         :param color: Cor do planeta [r, g, b]
         :param size: Tamanho do planeta (raio)
-        :param distance: Distância do Sol (escala ajustada)
+        :param distance: Distância do Sol ou do planeta pai (escala ajustada)
         :param orbit_speed: Velocidade de órbita (graus por frame)
         :param rotation_speed: Velocidade de rotação (graus por frame)
         :param texture_file: Caminho para a textura do planeta
         :param info: Informações sobre o planeta
+        :param parent: Planeta ao qual este planeta está orbitando (para luas)
         """
         self.name = name
         self.color = color
@@ -69,6 +76,7 @@ class Planet:
         self.orbit_angle = random.uniform(0, 360)  # Ângulo inicial aleatório
         self.rotation_angle = random.uniform(0, 360)  # Ângulo de rotação inicial aleatório
         self.texture_id = self.load_texture()
+        self.parent = parent  # Planeta pai
 
     def load_texture(self):
         try:
@@ -105,11 +113,20 @@ class Planet:
             self.rotation_angle -= 360
 
     def get_position(self):
-        # Calcular posição baseada no ângulo de órbita
-        rad = math.radians(self.orbit_angle)
-        x = self.distance * math.cos(rad)
-        z = self.distance * math.sin(rad)
-        return [x, self.size, z]
+        if self.parent:
+            # Obter a posição do planeta pai
+            parent_pos = np.array(self.parent.get_position())
+            rad = math.radians(self.orbit_angle)
+            x = parent_pos[0] + self.distance * math.cos(rad)
+            z = parent_pos[2] + self.distance * math.sin(rad)
+            y = parent_pos[1]  # Manter a mesma altura que o planeta pai
+            return [x, y, z]
+        else:
+            # Calcular posição baseada no ângulo de órbita em relação ao Sol
+            rad = math.radians(self.orbit_angle)
+            x = self.distance * math.cos(rad)
+            z = self.distance * math.sin(rad)
+            return [x, self.size, z]
 
     def draw(self):
         glPushMatrix()
@@ -308,7 +325,7 @@ class Player:
         sun_position = np.array([0, 0, 0])  # Assuming Sun is at origin
         distance_to_sun = np.linalg.norm(self.position - sun_position)
         
-        if distance_to_sun < self.size + 2:  # Assuming Sun's size radius is 2
+        if distance_to_sun < self.size + 5:  # Aumentado o tamanho do Sol para 5
             game_over = True
             end_game()  # End the game instantly
             return  # Exit the function to avoid further checks
@@ -336,7 +353,7 @@ rings = []
 
 # Inicialização da cena
 def init_scene():
-    global planets, background_texture_id, sun_texture_id, saturn_ring_texture_id, rings
+    global planets, moons, background_texture_id, sun_texture_id, saturn_ring_texture_id, rings
     # Definir luzes
     glEnable(GL_LIGHTING)
     glEnable(GL_LIGHT0)  # Luz do Sol
@@ -429,10 +446,11 @@ def init_scene():
 
     # Criar planetas com descrições detalhadas (sem tópicos)
     # Parâmetros: nome, cor, tamanho, distância do Sol, velocidade de órbita, velocidade de rotação, arquivo de textura, informações
+    # Aumentando os tamanhos dos planetas multiplicando por 1.5
     planets.append(Planet(
         name="Mercúrio",
-        color=[0.5, 0.5, 0.5],
-        size=0.5,
+        color=[0.75, 0.75, 0.75],
+        size=0.75,  # Aumentado de 0.5 para 0.75
         distance=10,
         orbit_speed=0.5,
         rotation_speed=2,
@@ -443,8 +461,8 @@ Mercúrio é o planeta mais próximo do Sol, com uma órbita que completa em cer
     ))
     planets.append(Planet(
         name="Vênus",
-        color=[1.0, 0.5, 0.0],
-        size=0.9,
+        color=[1.5, 0.75, 0.0],  # Aumentado para refletir tamanho maior
+        size=1.35,  # Aumentado de 0.9 para 1.35
         distance=15,
         orbit_speed=0.3,
         rotation_speed=1.8,
@@ -453,10 +471,10 @@ Mercúrio é o planeta mais próximo do Sol, com uma órbita que completa em cer
 Vênus é o segundo planeta do Sol e possui um diâmetro semelhante ao da Terra, com cerca de 12.104 km. É conhecido por sua densidade e composição rochosa. A atmosfera é composta predominantemente de dióxido de carbono (CO2) com nuvens de ácido sulfúrico, criando um efeito estufa extremo que eleva a temperatura de superfície a cerca de 467°C. Vênus possui uma rotação retrógrada, girando no sentido oposto ao da maioria dos planetas, completando uma rotação em aproximadamente 243 dias terrestres. Missões como a Venera da Rússia e a Akatsuki da JAXA têm estudado a atmosfera densa e as condições superficiais de Vênus.
 """
     ))
-    planets.append(Planet(
+    terra = Planet(
         name="Terra",
-        color=[0.0, 0.0, 1.0],
-        size=1.0,
+        color=[0.0, 0.0, 1.5],  # Aumentado para refletir tamanho maior
+        size=1.5,  # Aumentado de 1.0 para 1.5
         distance=20,
         orbit_speed=0.2,
         rotation_speed=1.5,
@@ -464,11 +482,12 @@ Vênus é o segundo planeta do Sol e possui um diâmetro semelhante ao da Terra,
         info="""
 A Terra é o terceiro planeta do Sol e o único conhecido por abrigar vida. Possui um diâmetro de aproximadamente 12.742 km e uma massa que permite a existência de uma atmosfera estável. A atmosfera terrestre é composta principalmente de nitrogênio (78%) e oxigênio (21%), com traços de argônio, dióxido de carbono e outros gases. É essencial para a vida, protegendo contra radiações nocivas e regulando a temperatura. Cerca de 71% da superfície da Terra é coberta por água, incluindo oceanos, rios, lagos e gelo polar. A água é vital para todos os seres vivos e desempenha um papel crucial no clima e na geologia do planeta. A Terra é o ponto de partida para todas as missões espaciais humanas, incluindo a Estação Espacial Internacional (ISS), e futuras explorações para a Lua, Marte e além.
 """
-    ))
+    )
+    planets.append(terra)
     planets.append(Planet(
         name="Marte",
-        color=[1.0, 0.0, 0.0],
-        size=0.7,
+        color=[1.5, 0.0, 0.0],  # Aumentado para refletir tamanho maior
+        size=1.05,  # Aumentado de 0.7 para 1.05
         distance=25,
         orbit_speed=0.15,
         rotation_speed=1.2,
@@ -479,8 +498,8 @@ Marte é o quarto planeta do Sol, conhecido como o Planeta Vermelho devido à pr
     ))
     planets.append(Planet(
         name="Júpiter",
-        color=[1.0, 0.5, 0.0],
-        size=2.0,
+        color=[1.5, 0.75, 0.0],  # Aumentado para refletir tamanho maior
+        size=3.0,  # Aumentado de 2.0 para 3.0
         distance=35,
         orbit_speed=0.1,
         rotation_speed=1.0,
@@ -491,8 +510,8 @@ Júpiter é o quinto planeta do Sol e o maior do sistema solar, com um diâmetro
     ))
     planets.append(Planet(
         name="Saturno",
-        color=[1.0, 1.0, 0.0],
-        size=1.8,
+        color=[1.5, 1.5, 0.0],  # Aumentado para refletir tamanho maior
+        size=2.7,  # Aumentado de 1.8 para 2.7
         distance=45,
         orbit_speed=0.08,
         rotation_speed=0.9,
@@ -503,8 +522,8 @@ Saturno é o sexto planeta do Sol e é conhecido por seu extenso sistema de ané
     ))
     planets.append(Planet(
         name="Urano",
-        color=[0.5, 1.0, 1.0],
-        size=1.2,
+        color=[0.75, 1.5, 1.5],  # Aumentado para refletir tamanho maior
+        size=1.8,  # Aumentado de 1.2 para 1.8
         distance=55,
         orbit_speed=0.05,
         rotation_speed=0.7,
@@ -515,8 +534,8 @@ Urano é o sétimo planeta do Sol e é classificado como um gigante gasoso ou gi
     ))
     planets.append(Planet(
         name="Netuno",
-        color=[0.0, 0.0, 0.5],
-        size=1.1,
+        color=[0.0, 0.0, 0.75],  # Aumentado para refletir tamanho maior
+        size=1.65,  # Aumentado de 1.1 para 1.65
         distance=65,
         orbit_speed=0.04,
         rotation_speed=0.6,
@@ -538,6 +557,22 @@ Netuno é o oitavo e último planeta do Sol, sendo um gigante gasoso com um diâ
             )
             rings.append(ring)
             break  # Encontrou Saturno, pode parar o loop
+
+    # Adicionar a Lua orbitando a Terra
+    moon = Planet(
+        name="Lua",
+        color=[0.8, 0.8, 0.8],
+        size=0.4,  # Tamanho menor que os planetas
+        distance=3,  # Distância em relação à Terra
+        orbit_speed=2.0,  # Velocidade de órbita mais rápida
+        rotation_speed=5.0,  # Rotação mais rápida para a Lua
+        texture_file="textures/moon.jpg",
+        info="""
+A Lua é o único satélite natural da Terra e o quinto maior do sistema solar. Possui um diâmetro de aproximadamente 3.474 km e uma superfície marcada por crateras, planícies e montanhas. A Lua desempenha um papel crucial nas marés terrestres e tem sido objeto de exploração humana, incluindo as missões Apollo da NASA. A Lua influencia muitos aspectos da Terra, incluindo ciclos biológicos e estabilidade axial.
+""",
+        parent=terra  # Define a Terra como o planeta pai
+    )
+    moons.append(moon)
 
 # Função para desenhar texto na tela
 def draw_text(x, y, text, color):
@@ -705,7 +740,7 @@ def draw_sun():
         gluQuadricNormals(quad, GLU_SMOOTH)
     else:
         gluQuadricNormals(quad, GLU_SMOOTH)
-    gluSphere(quad, 2, 50, 50)  # Tamanho do Sol ajustado
+    gluSphere(quad, 5, 50, 50)  # Aumentado de 2 para 5
     gluDeleteQuadric(quad)
 
     if sun_texture_id:
@@ -751,12 +786,16 @@ def display():
             for planet in planets:
                 planet.draw()
 
+            # Desenhar luas
+            for moon in moons:
+                moon.draw()
+
             # Desenhar anéis (especificamente para Saturno)
             for ring in rings:
                 ring.draw()
 
             # Verificar proximidade e exibir nomes
-            for planet in planets:
+            for planet in planets + moons:
                 pos = planet.get_position()
                 distance = np.linalg.norm(player.position - np.array(pos))
                 if distance < planet.size + 5:  # Ajustar limiar de proximidade
@@ -770,7 +809,7 @@ def display():
             # Show final time if the game is over
             timer_text = f"Final Time: {int(final_time)}s"
         else:
-            # Live timer during gameplay
+            # Live timer durante o gameplay
             elapsed_time = time.time() - start_time
             timer_text = f"Time: {int(elapsed_time)}s"
 
@@ -786,7 +825,7 @@ def display():
 def set_camera():
     global player
     if current_camera == CAMERA_FIRST_PERSON:
-        # Camera posicionada um pouco em frente ao cone
+        # Câmera em primeira pessoa
         offset_distance = 0.8
         rad = math.radians(player.yaw)
 
@@ -800,24 +839,35 @@ def set_camera():
                   up[0], up[1], up[2])
 
     elif current_camera == CAMERA_FIXED_1:
-        distance_behind = 20.0  # Distancia do player
-        height_above = 5.0      # Direção da visão sobre o player
+        # Câmera fixa 1: posição fixa atrás e acima da nave, seguindo o yaw
+        offset_distance_back = 20.0
+        offset_height = 10.0
         rad = math.radians(player.yaw)
 
-        eye = player.position + np.array([-distance_behind * math.sin(rad),
-                                         height_above,
-                                         distance_behind * math.cos(rad)])
-        center = player.position + np.array([math.sin(rad), 0, -math.cos(rad)])
+        eye_x = player.position[0] - offset_distance_back * math.sin(rad)
+        eye_z = player.position[2] + offset_distance_back * math.cos(rad)
+        eye_y = player.position[1] + offset_height
+
+        eye = np.array([eye_x, eye_y, eye_z])
+        center = player.position
         up = [0, 1, 0]
         gluLookAt(eye[0], eye[1], eye[2],
                   center[0], center[1], center[2],
                   up[0], up[1], up[2])
 
     elif current_camera == CAMERA_FIXED_2:
-        height_above = 40.0  # Distancia da altura
-        eye = player.position + np.array([0, height_above, 0])
+        # Câmera fixa 2: posição fixa de cima, seguindo o yaw
+        offset_distance_back = 20.0
+        offset_height = 50.0
+        rad = math.radians(player.yaw)
+
+        eye_x = player.position[0] - offset_distance_back * math.sin(rad)
+        eye_z = player.position[2] + offset_distance_back * math.cos(rad)
+        eye_y = player.position[1] + offset_height
+
+        eye = np.array([eye_x, eye_y, eye_z])
         center = player.position
-        up = [0, 0, -1]  # Inversão do eixo Z
+        up = [0, 0, -1]  # Ajuste para a orientação desejada
         gluLookAt(eye[0], eye[1], eye[2],
                   center[0], center[1], center[2],
                   up[0], up[1], up[2])
@@ -828,30 +878,34 @@ def set_camera():
 # Função para atualizar a cena (rotação, órbita, detecção de proximidade)
 def update(value):
     global collision_detected
-    if not collision_detected:
+    if not collision_detected and not paused:  # Verificar se não está pausado
         # Atualizar planetas
         for planet in planets:
             planet.update()
+
+        # Atualizar luas
+        for moon in moons:
+            moon.update()
 
         # Atualizar anéis
         for ring in rings:
             ring.update()
 
         # Verificar colisões
-        player.check_collision(planets)
+        player.check_collision(planets + moons)
 
     glutPostRedisplay()
     glutTimerFunc(16, update, 0)  # Aproximadamente 60 FPS
 
 # Função para gerenciar entrada do teclado
 def keyboard(key, x, y):
-    global current_camera, light_enabled, collision_detected, collided_planet, game_over
+    global current_camera, light_enabled, collision_detected, collided_planet, game_over, paused
     key = key.decode('utf-8').lower()
 
     if game_over:
-        if key == '\x1b':  # ESC to close the game
+        if key == '\x1b':  # ESC para fechar o jogo
             glutLeaveMainLoop()
-        elif key == '\r':  # ENTER to restart the game
+        elif key == '\r':  # ENTER para reiniciar o jogo
             restart_game()
     else:
         if not collision_detected:
@@ -869,6 +923,9 @@ def keyboard(key, x, y):
                 current_camera = CAMERA_FIXED_2
             elif key == 'l':
                 light_enabled = not light_enabled
+            elif key == 'p':
+                paused = not paused  # Alternar estado de pausa
+                print(f"Jogo {'pausado' if paused else 'despausado'}.")
         else:
             if key == '\x1b':  # ESC para fechar a tela de informações
                 collision_detected = False
@@ -889,9 +946,9 @@ def create_menus():
     glutAddMenuEntry("Luz Ligada", LIGHT_ON)
     glutAddMenuEntry("Luz Desligada", LIGHT_OFF)
 
-    # Menu de Planetas
+    # Menu de Planetas e Luas
     menu_planets = glutCreateMenu(menu_planets_func)
-    for idx, planet in enumerate(planets):
+    for idx, planet in enumerate(planets + moons):  # Incluir luas no menu
         glutAddMenuEntry(planet.name, idx)  # Usa o índice como identificador
 
     # Menu de Curiosidades
@@ -918,6 +975,7 @@ def create_menus():
         "E: Rotacionar para a esquerda",
         "1, 2, 3: Mudar câmera",
         "L: Alternar iluminação",
+        "P: Pausar/Despausar planetas",
         "Direito do Mouse: Abrir menu"
     ]
     for idx, control in enumerate(controls):
@@ -927,7 +985,7 @@ def create_menus():
     main_menu = glutCreateMenu(lambda option: None)
     glutAddSubMenu("Câmeras", menu_cameras)
     glutAddSubMenu("Iluminação", menu_lighting)
-    glutAddSubMenu("Planetas", menu_planets)
+    glutAddSubMenu("Planetas e Luas", menu_planets)  # Atualizado para incluir luas
     glutAddSubMenu("Curiosidades", menu_curiosities)
     glutAddSubMenu("Controles", menu_controls)
     glutAttachMenu(GLUT_RIGHT_BUTTON)
@@ -947,8 +1005,8 @@ def menu_lighting_func(option):
 
 def menu_planets_func(option):
     global collision_detected, collided_planet
-    if 0 <= option < len(planets):
-        collided_planet = planets[option]
+    if 0 <= option < len(planets + moons):
+        collided_planet = (planets + moons)[option]
         collision_detected = True
         glutPostRedisplay()
 
@@ -990,6 +1048,7 @@ def menu_controls_func(option):
         "E: Rotacionar para a esquerda",
         "1, 2, 3: Mudar câmera",
         "L: Alternar iluminação",
+        "P: Pausar/Despausar planetas",
         "Direito do Mouse: Abrir menu"
     ]
     controls_info = "\n".join(controls)
