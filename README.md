@@ -62,6 +62,9 @@ Representa o foguete controlado pelo usuário, com as propriedades:
 | Tecla/Mouse         | Função                                       |
 |---------------------|----------------------------------------------|
 | `W`                 | Mover o foguete para frente                 |
+| `A`                 | Mover o foguete para a esquerda             |
+| `S`                 | Mover o foguete para a trás                 |
+| `D`                 | Mover o foguete para a direita              |
 | `Q`                 | Rotacionar o foguete para a direita         |
 | `E`                 | Rotacionar o foguete para a esquerda        |
 | `1`                 | Alternar para câmera em primeira pessoa     |
@@ -109,5 +112,10 @@ pip install PyOpenGL PyOpenGL_accelerate Pillow numpy
 - Execute o script principal com o comando:
 
 ```bash
-python solar_system.py
+python main.py
 ```
+
+---
+## ❕❗❕ Observação ❗❕❗
+
+- Os controles não são tão bem implementados, ao girar o foguete os controles são invertidos, então é possível que você se mova em uma direção que não quer ao precionar uma tecla. 

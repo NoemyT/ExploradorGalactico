@@ -24,7 +24,7 @@ final_time = 0
 tempo_antes_pausa = 0
 
 # Câmeras
-current_camera = CAMERA_FIXED_1  # Inicializar com uma câmera fixa para facilitar testes
+current_camera = CAMERA_FIRST_PERSON  # Inicializar com a camera de primeira pessoa
 cameras = {
     CAMERA_FIRST_PERSON: {'eye': [0, 2, 50], 'center': [0, 2, 0], 'up': [0, 1, 0]},
     CAMERA_FIXED_1: {'eye': [100, 70, 100], 'center': [0, 0, 0], 'up': [0, 1, 0]},
@@ -38,7 +38,7 @@ light_enabled = True
 planets = []
 
 # Lista de luas
-moons = []  # Nova lista para luas
+moons = []
 
 # Variáveis para colisão
 collision_detected = False
@@ -50,7 +50,7 @@ sun_texture_id = None
 saturn_ring_texture_id = None
 
 # Variável para pausar o jogo
-paused = False  # Nova variável para controlar pausa
+paused = False
 
 # Classe para representar cada planeta
 class Planet:
@@ -336,27 +336,12 @@ class Player:
         glDisable(GL_BLEND)
         glPopMatrix()
 
-    """
-    def move_forward(self, distance):
-        # Calcula o deslocamento baseado em yaw
-        rad_yaw = math.radians(self.yaw)
-
-        # Componentes de movimento
-        dx = distance * math.sin(rad_yaw)
-        dz = -distance * math.cos(rad_yaw)
-        dy = 0  # Sem movimentação vertical
-
-        self.position += np.array([dx, dy, dz])
-        self.is_moving = True  # Ativa o estado de movimento
-        print(f"Movendo para frente: posição atual {self.position}")
-    """
-
     def move_player(self, forward, right):
         rad = math.radians(player.yaw)
         move_vector = np.array([right * math.cos(rad) + forward * math.sin(rad),
                             0,
                             right * math.sin(rad) - forward * math.cos(rad)])
-        self.position += move_vector * 1.0  # Adjust speed as needed
+        self.position += move_vector * 1.0
         self.is_moving = True
 
     def rotate_right(self, angle):
@@ -372,14 +357,14 @@ class Player:
     def check_collision(self, celestial_bodies):
         global collision_detected, collided_planet, game_over
 
-        # Check for collision with the Sun
-        sun_position = np.array([0, 0, 0])  # Assuming Sun is at origin
+        # Cheque de colisão com o sol 
+        sun_position = np.array([0, 0, 0])
         distance_to_sun = np.linalg.norm(self.position - sun_position)
         
         if distance_to_sun < self.size + 5:  # Aumentado o tamanho do Sol para 5
             game_over = True
-            end_game()  # End the game instantly
-            return  # Exit the function to avoid further checks
+            end_game()
+            return
 
         for body in celestial_bodies:
             if body.name in self.planetas_coletados:
@@ -953,19 +938,21 @@ def keyboard(key, x, y):
             restart_game()
     else:
         if not collision_detected:
-            if key == 'w':
-                player.move_player(1, 0)  # Mover para frente
-            elif key == 's':
-                player.move_player(-1, 0)
-            elif key == 'a':
-                player.move_player(0, -1)
-            elif key == 'd':
-                player.move_player(0, 1)
-            elif key == 'q':
-                player.rotate_right(5)    # Rotacionar para a direita
-            elif key == 'e':
-                player.rotate_left(5)     # Rotacionar para a esquerda
-            elif key == '1':
+            if not paused:
+                if key == 'w':
+                    player.move_player(1, 0) # frente
+                elif key == 's':
+                    player.move_player(-1, 0) # trás
+                elif key == 'a':
+                    player.move_player(0, -1) # esquerda
+                elif key == 'd':
+                    player.move_player(0, 1) # direita
+                elif key == 'q':
+                    player.rotate_right(5)    # Rotacionar para a direita
+                elif key == 'e':
+                    player.rotate_left(5)     # Rotacionar para a esquerda
+            # Outros botões
+            if key == '1':
                 current_camera = CAMERA_FIRST_PERSON
             elif key == '2':
                 current_camera = CAMERA_FIXED_1
@@ -1143,14 +1130,14 @@ def end_game():
     global game_over, final_time
     game_over = True
     if final_time == 0:
-        final_time = time.time() - start_time  # Record final elapsed time
+        final_time = time.time() - start_time  # Definição do tempo final
 
 def draw_end_game_screen():
     global final_time
     glDisable(GL_LIGHTING)
     glDisable(GL_DEPTH_TEST)
     
-    # Semi-transparent background
+    # Fundo semi-transparente
     glColor4f(0, 0, 0, 0.8)
     glBegin(GL_QUADS)
     glVertex2f(0, 0)
@@ -1159,14 +1146,14 @@ def draw_end_game_screen():
     glVertex2f(0, window_height)
     glEnd()
 
-    # Display final time and collected planets
+    # Tempo total e planetas coletados
     glColor3f(1.0, 1.0, 1.0)
     draw_text(window_width // 2 - 150, window_height // 2 + 100, "Game Over!", [1.0, 1.0, 1.0])
     draw_text(window_width // 2 - 180, window_height // 2 + 60, f"Final Time: {int(final_time)}s", [1.0, 1.0, 1.0])
     collected_text = "Planetas Coletados: " + ", ".join(player.planetas_coletados)
     draw_text(window_width // 2 - 200, window_height // 2 + 30, collected_text, [1.0, 1.0, 1.0])
 
-    # Display instructions to restart or exit
+    # Começar denovo ou sair
     draw_text(window_width // 2 - 200, window_height // 2 - 30, "'ENTER' para Recomeçar", [1.0, 1.0, 1.0])
     draw_text(window_width // 2 - 200, window_height // 2 - 60, "'ESC' para Sair", [1.0, 1.0, 1.0])
 
@@ -1180,9 +1167,9 @@ def restart_game():
     final_time = 0
     collision_detected = False
     collided_planet = None
-    player.position = np.array([0, 2, 50], dtype='float64')  # Reset player position
-    player.planetas_coletados.clear()       # Clear collected planets
-    player.yaw = 0                          # Reset player rotation if needed
+    player.position = np.array([0, 2, 50], dtype='float64')  # Reseta a posição do player
+    player.planetas_coletados.clear()       # Limpa a lista dos planetas coletados
+    player.yaw = 0                          # Reseta a orientação do player
 
 # Função principal
 def main():
